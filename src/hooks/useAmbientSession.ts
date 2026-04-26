@@ -10,6 +10,7 @@ import type { AnalysisPayload, LightMode, UserLightPrefs } from "../types";
 import { THEMES } from "../lib/themes";
 
 const BEAT_HISTORY = 12;
+const NETLIFY_ANALYZE_PROXY = "/.netlify/functions/analyze";
 
 const defaultPrefs: UserLightPrefs = {
   brightness: 0.75,
@@ -98,7 +99,12 @@ export function useAmbientSession() {
         ? intensityRef.current.slice(-BEAT_HISTORY)
         : [0.2, 0.5, 0.75];
 
-    const remoteUrl = import.meta.env.VITE_ANALYZE_URL;
+    const envAnalyzeUrl = import.meta.env.VITE_ANALYZE_URL;
+    const remoteUrl =
+      envAnalyzeUrl ||
+      (window.location.hostname.endsWith("netlify.app")
+        ? NETLIFY_ANALYZE_PROXY
+        : "");
     if (remoteUrl) {
       const remote = await analyzeWithRemote(
         remoteUrl,

@@ -30,6 +30,10 @@ const MOOD_HUE: Record<MoodLabel, number> = {
   neutral: 210,
 };
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
 function scoreText(text: string): MoodLabel {
   const t = text.toLowerCase();
   let best: MoodLabel = "neutral";
@@ -200,6 +204,17 @@ export async function analyzeWithRemote(
         beat_index: data.beat_index as number[],
         intensity: data.intensity as number[],
         key_mode: keyMode,
+        palette_hues: Array.isArray(data.palette_hues)
+          ? data.palette_hues.filter((n) => typeof n === "number").slice(0, 4)
+          : [fallback.primaryHue, fallback.secondaryHue, (fallback.primaryHue + 42) % 360],
+        saturation_hint:
+          typeof data.saturation_hint === "number"
+            ? Math.min(1, Math.max(0.2, data.saturation_hint))
+            : undefined,
+        dynamic_bias:
+          typeof data.dynamic_bias === "number"
+            ? Math.min(1, Math.max(0, data.dynamic_bias))
+            : undefined,
         primary_hue:
           typeof data.primary_hue === "number"
             ? data.primary_hue
@@ -236,6 +251,17 @@ export function buildLocalPayload(
     key_mode: keyMode,
     primary_hue: primaryHue,
     secondary_hue: secondaryHue,
+    palette_hues: [
+      primaryHue,
+      secondaryHue,
+      (primaryHue + (keyMode === "minor" ? 26 : 42)) % 360,
+    ],
+    saturation_hint: clamp(
+      0.48 + (intensity[intensity.length - 1] ?? 0.5) * 0.35,
+      0.28,
+      0.95
+    ),
+    dynamic_bias: clamp((tempo - 80) / 100, 0.1, 0.95),
     tempo,
     beat_index: beatIndex,
     intensity,

@@ -15,6 +15,9 @@ export interface AnalysisPayload {
   key_mode: "major" | "minor" | "unknown";
   primary_hue: number;
   secondary_hue: number;
+  palette_hues?: number[];
+  saturation_hint?: number;
+  dynamic_bias?: number;
   tempo: number;
   beat_index: number[];
   intensity: number[];

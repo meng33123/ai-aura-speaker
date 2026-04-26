@@ -31,6 +31,9 @@ export function computeLightFrame(
   phase: number
 ): LightFrame {
   const theme = THEMES.find((t) => t.id === prefs.themeId) ?? THEMES[0]!;
+  const palette = analysis.palette_hues?.length
+    ? analysis.palette_hues
+    : [analysis.primary_hue, analysis.secondary_hue];
   let hue = analysis.primary_hue + prefs.colorBiasHue;
   let accentHue = analysis.secondary_hue;
   let sat = theme.saturation;
@@ -41,30 +44,36 @@ export function computeLightFrame(
   const lastInt =
     analysis.intensity[analysis.intensity.length - 1] ?? beatStrength;
   const bpmNorm = clamp((analysis.tempo - 80) / 90, 0, 1);
+  const satHint = analysis.saturation_hint ?? theme.saturation;
+  const dynamicBias = analysis.dynamic_bias ?? 0.5;
   const keyWarmBias = analysis.key_mode === "major" ? 1 : analysis.key_mode === "minor" ? -1 : 0;
 
   if (mode === "rhythm") {
-    hue = lerp(moodHue, hue, 0.42) + beatStrength * (24 + bpmNorm * 38);
-    accentHue = (hue + (analysis.key_mode === "minor" ? 36 : 72)) % 360;
-    sat = clamp(0.52 + lastInt * 0.38 + bpmNorm * 0.08, 0.35, 1);
+    const base = palette[0] ?? hue;
+    const partner = palette[1] ?? accentHue;
+    hue = lerp(moodHue, base, 0.42) + beatStrength * (24 + bpmNorm * 38);
+    accentHue = lerp(partner, hue, 0.3) + (analysis.key_mode === "minor" ? 24 : 56);
+    sat = clamp(lerp(0.48, satHint, 0.55) + lastInt * 0.35 + bpmNorm * 0.08, 0.35, 1);
     light = 0.38 + prefs.brightness * 0.22 + beatStrength * 0.18;
-    glow = 0.36 + beatStrength * 0.58;
+    glow = 0.34 + beatStrength * (0.42 + dynamicBias * 0.22);
   } else if (mode === "mood") {
+    const paletteLead = palette[0] ?? analysis.primary_hue;
+    const paletteSoft = palette[2] ?? analysis.secondary_hue;
     hue =
-      lerp(moodHue, analysis.primary_hue, 0.55) +
+      lerp(moodHue, paletteLead, 0.55) +
       prefs.colorBiasHue * 0.35 +
       keyWarmBias * 14;
-    accentHue = (analysis.secondary_hue + keyWarmBias * 10 + 360) % 360;
-    sat = clamp(0.48 + (analysis.mood === "calm" ? -0.08 : 0.18), 0.3, 0.95);
+    accentHue = (lerp(analysis.secondary_hue, paletteSoft, 0.6) + keyWarmBias * 10 + 360) % 360;
+    sat = clamp(lerp(0.45, satHint, 0.7) + (analysis.mood === "calm" ? -0.06 : 0.12), 0.3, 0.95);
     light = 0.4 + prefs.brightness * 0.25;
-    glow = 0.45 + lastInt * 0.35;
+    glow = 0.38 + lastInt * (0.25 + dynamicBias * 0.2);
   } else {
-    const drift = Math.sin(timeSec * (0.24 + bpmNorm * 0.62)) * (10 + bpmNorm * 18);
-    hue = analysis.primary_hue + prefs.colorBiasHue + drift;
-    accentHue = (analysis.secondary_hue - drift * 0.5 + 360) % 360;
-    sat = clamp(theme.saturation + bpmNorm * 0.06, 0.25, 1);
+    const drift = Math.sin(timeSec * (0.24 + bpmNorm * (0.42 + dynamicBias * 0.55))) * (10 + bpmNorm * 18);
+    hue = (palette[0] ?? analysis.primary_hue) + prefs.colorBiasHue + drift;
+    accentHue = ((palette[1] ?? analysis.secondary_hue) - drift * 0.5 + 360) % 360;
+    sat = clamp(lerp(theme.saturation, satHint, 0.55) + bpmNorm * 0.06, 0.25, 1);
     light = 0.42 + prefs.brightness * 0.2;
-    glow = 0.34 + beatStrength * 0.4;
+    glow = 0.32 + beatStrength * (0.35 + dynamicBias * 0.2);
   }
 
   const eff = prefs.effect;
@@ -77,7 +86,7 @@ export function computeLightFrame(
     light *= p;
     glow *= p;
   } else if (eff === "gradient") {
-    hue += Math.sin(timeSec * (0.5 + bpmNorm * 1.8) + phase) * (16 + bpmNorm * 26);
+    hue += Math.sin(timeSec * (0.5 + bpmNorm * (1.1 + dynamicBias * 1.2)) + phase) * (16 + bpmNorm * 26);
   }
 
   hue = ((hue % 360) + 360) % 360;
